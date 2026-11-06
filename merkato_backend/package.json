@@ -1,0 +1,13 @@
+{
+  "name": "merkato-backend",
+  "version": "1.0.0",
+  "description": "REST API for Merkato Market: phone-OTP auth, catalog, orders, Chapa payments, escrow ledger.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/index.js",
+    "seed": "node src/seed.js",
+    "test": "node --test --no-warnings test/api.test.js"
+  }
+}
