@@ -7,7 +7,7 @@ class Strings {
     'subtotal': 'Subtotal', 'delivery': 'Delivery', 'place_order': 'Place order', 'empty_cart': 'Your cart is empty',
     'moq': 'Min. order', 'verified': 'Verified seller', 'escrow': 'Escrow protected: your money is released to the seller only after you confirm delivery (or automatically after 5 days).',
     'rfq': 'Request a quote', 'language': 'አማርኛ', 'sold': 'sold', 'all': 'All',
-    'st_placed': 'Order placed', 'st_confirmed': 'Seller confirmed', 'st_out': 'Out for delivery', 'st_delivered': 'Delivered', 'st_completed': 'Completed',
+    'st_pending_payment': 'Awaiting payment', 'st_cancelled': 'Cancelled', 'st_disputed': 'In dispute', 'st_refunded': 'Refunded', 'st_placed': 'Order placed', 'st_confirmed': 'Seller confirmed', 'st_out': 'Out for delivery', 'st_delivered': 'Delivered', 'st_completed': 'Completed',
   };
   static const am = {
     'home': 'መነሻ', 'wholesale': 'ጅምላ', 'cart': 'ጋሪ', 'orders': 'ትዕዛዞች', 'account': 'መለያ',
@@ -16,6 +16,6 @@ class Strings {
     'subtotal': 'ንዑስ ድምር', 'delivery': 'ማድረሻ', 'place_order': 'ትዕዛዝ ላክ', 'empty_cart': 'ጋሪዎ ባዶ ነው',
     'moq': 'ዝቅተኛ ትዕዛዝ', 'verified': 'የተረጋገጠ ሻጭ', 'escrow': 'ገንዘብዎ የሚለቀቀው እቃው መድረሱን ካረጋገጡ በኋላ (ወይም ከ5 ቀን በኋላ በራስ-ሰር) ነው።',
     'rfq': 'ዋጋ ይጠይቁ', 'language': 'English', 'sold': 'ተሽጧል', 'all': 'ሁሉም',
-    'st_placed': 'ትዕዛዝ ተሰጥቷል', 'st_confirmed': 'ሻጭ አረጋግጧል', 'st_out': 'በመንገድ ላይ', 'st_delivered': 'ደርሷል', 'st_completed': 'ተጠናቋል',
+    'st_pending_payment': 'ክፍያ በመጠባበቅ ላይ', 'st_cancelled': 'ተሰርዟል', 'st_disputed': 'አለመግባባት ላይ', 'st_refunded': 'ተመላሽ ተደርጓል', 'st_placed': 'ትዕዛዝ ተሰጥቷል', 'st_confirmed': 'ሻጭ አረጋግጧል', 'st_out': 'በመንገድ ላይ', 'st_delivered': 'ደርሷል', 'st_completed': 'ተጠናቋል',
   };
 }

@@ -56,8 +56,8 @@ class ProductCard extends StatelessWidget {
               ]),
               const SizedBox(height: 2),
               Row(children: [
-                const Icon(Icons.star, size: 14, color: Colors.amber),
-                Text(' ${p.rating} · ${p.sold} ${s.t('sold')}', style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                if (p.reviews > 0) const Icon(Icons.star, size: 14, color: Colors.amber),
+                Text(p.reviews > 0 ? ' ${p.rating} · ${p.sold} ${s.t('sold')}' : 'New', style: const TextStyle(fontSize: 11, color: Colors.black54)),
               ]),
               Row(children: [
                 const Icon(Icons.place_outlined, size: 13, color: Colors.black45),

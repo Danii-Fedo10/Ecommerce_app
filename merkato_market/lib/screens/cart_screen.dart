@@ -10,15 +10,28 @@ class CartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
+    final groups = s.cartBySeller;
     return Scaffold(
       appBar: AppBar(title: Text(s.t('cart'))),
-      body: s.cart.isEmpty
+      body: groups.isEmpty
           ? Center(child: Text(s.t('empty_cart')))
           : ListView(padding: const EdgeInsets.all(12), children: [
-              for (final e in s.cart.entries) _line(s, s.byId(e.key), e.value),
+              if (groups.length > 1)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: kYellow.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(10)),
+                  child: Text('Items from ${groups.length} sellers will be placed as ${groups.length} separate orders, each with its own delivery.', style: const TextStyle(fontSize: 12)),
+                ),
+              for (final g in groups.values) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                  child: Row(children: [const Icon(Icons.store, size: 16, color: kGreen), const SizedBox(width: 6), Text(g.first.key.seller, style: const TextStyle(fontWeight: FontWeight.bold))]),
+                ),
+                for (final e in g) _line(s, e.key, e.value),
+              ],
               const SizedBox(height: 8),
               _row(s.t('subtotal'), etb(s.subtotal)),
-              _row(s.t('delivery'), etb(s.deliveryFee)),
+              _row('${s.t('delivery')} (estimate)', etb(s.deliveryFee)),
               const Divider(),
               _row(s.t('total'), etb(s.total), bold: true),
               const SizedBox(height: 16),

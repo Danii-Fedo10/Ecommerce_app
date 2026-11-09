@@ -23,54 +23,77 @@ class _HomeScreenState extends State<HomeScreen> {
         (cat == null || p.category == cat) &&
         (tera == null || p.tera == tera) &&
         (q.isEmpty || p.name.toLowerCase().contains(q) || p.nameAm.contains(query) || p.seller.toLowerCase().contains(q) || p.tera.toLowerCase().contains(q))).toList();
+    final teras = s.products.map((p) => p.tera).toSet().toList()..sort();
 
     return SafeArea(
-      child: CustomScrollView(slivers: [
-        SliverAppBar(
-          floating: true,
-          title: const Text('Merkato Market', style: TextStyle(fontWeight: FontWeight.w800, color: kGreen)),
-          actions: [TextButton(onPressed: s.toggleLang, child: Text(s.t('language')))],
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: TextField(
-              onChanged: (v) => setState(() => query = v),
-              decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: s.t('search'), isDense: true),
+      child: RefreshIndicator(
+        onRefresh: s.loadProducts,
+        child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
+          SliverAppBar(
+            floating: true,
+            title: const Text('Merkato Market', style: TextStyle(fontWeight: FontWeight.w800, color: kGreen)),
+            actions: [TextButton(onPressed: s.toggleLang, child: Text(s.t('language')))],
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: TextField(
+                onChanged: (v) => setState(() => query = v),
+                decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: s.t('search'), isDense: true),
+              ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(child: _banner(s)),
-        SliverToBoxAdapter(child: _title(s.t('categories'))),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 40,
-            child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-              _chip(s.t('all'), cat == null, () => setState(() => cat = null)),
-              for (final c in MockData.categories)
-                _chip('${c.emoji} ${s.am ? c.am : c.en}', cat == c.id, () => setState(() => cat = cat == c.id ? null : c.id)),
-            ]),
+          SliverToBoxAdapter(child: _banner()),
+          SliverToBoxAdapter(child: _title(s.t('categories'))),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 40,
+              child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
+                _chip(s.t('all'), cat == null, () => setState(() => cat = null)),
+                for (final c in MockData.categories)
+                  _chip('${c.emoji} ${s.am ? c.am : c.en}', cat == c.id, () => setState(() => cat = cat == c.id ? null : c.id)),
+              ]),
+            ),
           ),
-        ),
-        SliverToBoxAdapter(child: _title(s.t('teras'))),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 40,
-            child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-              for (final t in s.teras) _chip(t, tera == t, () => setState(() => tera = tera == t ? null : t)),
-            ]),
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          sliver: SliverGrid.builder(
-            itemCount: list.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.66, crossAxisSpacing: 10, mainAxisSpacing: 10),
-            itemBuilder: (_, i) => ProductCard(list[i]),
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          if (teras.isNotEmpty) ...[
+            SliverToBoxAdapter(child: _title(s.t('teras'))),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 40,
+                child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
+                  for (final t in teras) _chip(t, tera == t, () => setState(() => tera = tera == t ? null : t)),
+                ]),
+              ),
+            ),
+          ],
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          if (s.products.isEmpty)
+            SliverToBoxAdapter(child: _status(s))
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              sliver: SliverGrid.builder(
+                itemCount: list.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.66, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                itemBuilder: (_, i) => ProductCard(list[i]),
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _status(AppState s) {
+    if (s.loading) return const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()));
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(children: [
+        Icon(s.loadError != null ? Icons.cloud_off : Icons.inventory_2_outlined, size: 48, color: Colors.grey),
+        const SizedBox(height: 8),
+        Text(s.loadError ?? 'No products yet. Sellers will list them soon.', textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        OutlinedButton(onPressed: s.loadProducts, child: const Text('Retry')),
       ]),
     );
   }
@@ -82,14 +105,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => onTap()),
       );
 
-  Widget _banner(AppState s) => Container(
+  Widget _banner() => Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: const LinearGradient(colors: [kGreen, Color(0xFF0B6B2B)])),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Merkato, now in your pocket', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
           SizedBox(height: 6),
-          Text('Retail & wholesale from trusted traders · Pay with telebirr, CBE Birr or cash · Escrow-protected orders',
+          Text('Retail & wholesale from verified traders · Pay with telebirr, CBE Birr or cash · Escrow-protected orders',
               style: TextStyle(color: Colors.white70, fontSize: 12)),
         ]),
       );

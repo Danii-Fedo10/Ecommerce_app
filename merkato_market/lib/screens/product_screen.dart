@@ -31,10 +31,11 @@ class _ProductScreenState extends State<ProductScreen> {
         const SizedBox(height: 14),
         Text(s.pname(p), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Row(children: [
-          const Icon(Icons.star, size: 18, color: Colors.amber),
-          Text(' ${p.rating} (${p.reviews}) · ${p.sold} ${s.t('sold')}'),
-        ]),
+        if (p.reviews > 0)
+          Row(children: [
+            const Icon(Icons.star, size: 18, color: Colors.amber),
+            Text(' ${p.rating} (${p.reviews}) · ${p.sold} ${s.t('sold')}'),
+          ]),
         const SizedBox(height: 10),
         Text(etb(unit), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: kGreen)),
         if (p.tiers.isNotEmpty) ...[

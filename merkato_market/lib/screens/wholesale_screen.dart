@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
-import '../models.dart';
 import '../state/app_state.dart';
+import 'login_screen.dart';
 import 'product_screen.dart';
+import '../core/api.dart';
 
 /// Alibaba-style B2B tab: MOQ, tiered pricing and Request-for-Quote (RFQ).
 class WholesaleScreen extends StatelessWidget {
@@ -16,7 +17,10 @@ class WholesaleScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(s.t('wholesale'))),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _rfqDialog(context, s),
+        onPressed: () async {
+          if (!s.loggedIn) { await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())); }
+          if (s.loggedIn && context.mounted) _rfqDialog(context, s);
+        },
         icon: const Icon(Icons.request_quote_outlined),
         label: Text(s.t('rfq')),
       ),
@@ -76,11 +80,16 @@ class WholesaleScreen extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final q = int.tryParse(qty.text);
               if (prod.text.trim().isEmpty || q == null || q <= 0) return;
-              s.addRfq(Rfq(prod.text.trim(), q, double.tryParse(target.text), note.text.trim(), DateTime.now()));
-              Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await s.sendRfq(prod.text.trim(), q, double.tryParse(target.text), note.text.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text(errText(e))));
+              }
             },
             child: const Text('Send to sellers'),
           ),

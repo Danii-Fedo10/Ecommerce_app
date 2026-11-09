@@ -40,7 +40,10 @@ export function buildRoutes({ db, config, svc, chapa, sendSms }) {
     return { token: signJwt({ sub: user.id, role: user.role }, config.jwtSecret), user: { id: user.id, phone: user.phone, name: user.name, role: user.role } };
   });
 
-  r.add('GET', '/api/me', null, ({ user }) => ({ id: user.id, phone: user.phone, name: user.name, role: user.role }));
+  r.add('GET', '/api/me', null, ({ user }) => {
+    const s = q('SELECT status, shop_name AS shopName, tera FROM sellers WHERE user_id=?').get(user.id);
+    return { id: user.id, phone: user.phone, name: user.name, role: user.role, sellerStatus: s?.status ?? null, shopName: s?.shopName ?? null };
+  });
 
   // ---------- Catalog ----------
   const productRow = (p) => ({ ...p, wholesale: !!p.wholesale, tiers: q('SELECT min_qty AS minQty, price FROM price_tiers WHERE product_id=? ORDER BY min_qty').all(p.id) });
@@ -112,6 +115,19 @@ export function buildRoutes({ db, config, svc, chapa, sendSms }) {
 
   // ---------- Courier ----------
   r.add('POST', '/api/courier/orders/:id/delivered', ROLE('courier', 'admin'), ({ params }) => svc.markDelivered(params.id));
+  r.add('GET', '/api/courier/orders', ROLE('courier', 'admin'), () =>
+    ({ items: q("SELECT * FROM orders WHERE status='out_for_delivery' ORDER BY created_at LIMIT 100").all().map(svc.view) }));
+
+  // ---------- Dev only: simulate the Chapa checkout. Exists only when CHAPA_MOCK=1 (config forbids that in production) ----------
+  r.add('POST', '/api/dev/orders/:id/simulate-payment', null, async ({ user, params }) => {
+    if (!config.chapaMock) throw new HttpError(404, 'Not found');
+    const o = svc.getOrder(params.id);
+    if (o.buyer_id !== user.id) throw new HttpError(403, 'Not your order');
+    const pay = q("SELECT * FROM payments WHERE order_id=? AND status='pending' ORDER BY created_at DESC").get(o.id);
+    if (!pay) throw new HttpError(409, 'Start payment first');
+    chapa._mockPay(pay.tx_ref, (pay.amount / 100).toFixed(2));
+    return svc.confirmPayment(pay.tx_ref);
+  });
 
   // ---------- RFQ (wholesale quote requests) ----------
   r.add('POST', '/api/rfqs', null, ({ user, body }) => {

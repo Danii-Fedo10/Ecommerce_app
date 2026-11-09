@@ -9,14 +9,14 @@ import 'screens/orders_screen.dart';
 import 'screens/account_screen.dart';
 
 void main() => runApp(
-      ChangeNotifierProvider(create: (_) => AppState(), child: const MerkatoApp()),
+      ChangeNotifierProvider(create: (_) => AppState()..init(), child: const MerkatoApp()),
     );
 
 class MerkatoApp extends StatelessWidget {
   const MerkatoApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Merkato',
+        title: 'Merkato Market',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: const Shell(),

@@ -147,6 +147,20 @@ test('auto-release after 5 days when buyer is silent', async () => {
   assert.equal(app.svc.getOrder(o.id).status, 'completed');
 });
 
+test('dev simulate-payment + courier list + /me seller status', async () => {
+  const o = (await api('POST', '/api/orders', { token: buyer.token, body: { items: [{ productId: product.id, qty: 10 }], address, paymentMethod: 'telebirr' } })).json;
+  assert.equal((await api('POST', `/api/dev/orders/${o.id}/simulate-payment`, { token: buyer.token })).status, 409); // not started
+  await api('POST', `/api/orders/${o.id}/pay`, { token: buyer.token });
+  assert.equal((await api('POST', `/api/dev/orders/${o.id}/simulate-payment`, { token: buyer.token })).json.ok, true);
+  assert.equal((await api('GET', `/api/orders/${o.id}`, { token: buyer.token })).json.status, 'placed');
+  await api('POST', `/api/seller/orders/${o.id}/confirm`, { token: seller.token });
+  await api('POST', `/api/seller/orders/${o.id}/dispatch`, { token: seller.token });
+  const list = await api('GET', '/api/courier/orders', { token: courier.token });
+  assert.equal(list.json.items.some((x) => x.id === o.id), true);
+  assert.equal((await api('GET', '/api/courier/orders', { token: buyer.token })).status, 403);
+  assert.equal((await api('GET', '/api/me', { token: seller.token })).json.sellerStatus, 'verified');
+});
+
 test('OTP: wrong code rejected; address validation', async () => {
   await api('POST', '/api/auth/otp', { body: { phone: '0933000009' } });
   assert.equal((await api('POST', '/api/auth/verify', { body: { phone: '0933000009', code: '000000' } })).status, 401);
