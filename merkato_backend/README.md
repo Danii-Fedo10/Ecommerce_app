@@ -32,6 +32,7 @@ Zero runtime dependencies (Node >= 22.13: built-in `http`, `sqlite`, `crypto`, `
 | Courier | `POST /api/courier/orders/:id/delivered` |
 | RFQ | `POST /api/rfqs`, `GET /api/rfqs` |
 | Webhook | `POST /api/webhooks/chapa` |
+| Payouts | `GET /api/seller/balance`, `GET /api/refunds`, `GET /api/admin/payables`, `POST /api/admin/payouts` |
 | Admin | `GET /api/admin/sellers`, `POST .../sellers/:id/verify`, `POST .../users/:id/role`, `POST .../orders/:id/resolve`, `GET .../ledger` |
 
 ## Before going live (not done yet)
@@ -39,7 +40,7 @@ Zero runtime dependencies (Node >= 22.13: built-in `http`, `sqlite`, `crypto`, `
 2. Real SMS gateway in `sendSms` (src/app.js); keep OTP out of logs.
 3. Test against Chapa **test mode** with real keys (only the mock path is tested here). Confirm in your Chapa dashboard which
    secret/hash is used for webhook signing and set `CHAPA_WEBHOOK_SECRET` accordingly.
-4. Refund payouts (`refund:<buyer>` balances) and seller payouts (`seller:<id>` balances) need a payout job (Chapa transfers) + admin screen.
+4. Payouts are recorded manually (admin sends money from Chapa dashboard / bank, then records it with the transaction reference; duplicates and overpayment are rejected). Automating this with Chapa's transfer API needs bank codes + account validation + seller bank details.
 5. Redis-backed rate limiting, request logging, HTTPS/reverse proxy, secrets manager, CORS for web clients.
 6. Product images (object storage), seller KYC document upload, courier assignment/tracking, push notifications.
 7. Legal/tax: invoicing/VAT and payment-licensing requirements for your setup.

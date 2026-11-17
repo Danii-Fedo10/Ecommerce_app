@@ -30,6 +30,8 @@ class AppState extends ChangeNotifier {
   List<Order> sellerOrders = [];
   List<Order> deliveries = [];
   List<Map<String, dynamic>> pendingSellers = [];
+  List<Map<String, dynamic>> payables = [];
+  Map<String, dynamic>? balance; // seller: owed / paidOut / inEscrow (santim)
   String? partialError;
 
   bool get loggedIn => user != null;
@@ -77,7 +79,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    api.token = null; user = null; orders = []; rfqs = []; sellerOrders = []; deliveries = []; pendingSellers = [];
+    api.token = null; user = null; orders = []; rfqs = []; sellerOrders = []; deliveries = []; pendingSellers = []; payables = []; balance = null;
     (await SharedPreferences.getInstance()).remove('token');
     notifyListeners();
   }
@@ -95,8 +97,8 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadRoleData() async {
-    if (role == 'seller') await loadSellerOrders();
-    if (role == 'admin') await loadPendingSellers();
+    if (role == 'seller') await Future.wait([loadSellerOrders(), loadBalance()]);
+    if (role == 'admin') await Future.wait([loadPendingSellers(), loadPayables()]);
     if (role == 'admin' || role == 'courier') await loadDeliveries();
   }
 
@@ -255,5 +257,26 @@ class AppState extends ChangeNotifier {
   Future<void> markDelivered(String id) async {
     await api.post('/api/courier/orders/$id/delivered');
     await loadDeliveries();
+  }
+
+  // ---------- payouts ----------
+  Future<void> loadBalance() async {
+    balance = Map<String, dynamic>.from(await api.get('/api/seller/balance') as Map);
+    notifyListeners();
+  }
+
+  Future<void> loadPayables() async {
+    final r = await api.get('/api/admin/payables');
+    payables = [for (final j in (r['items'] as List)) Map<String, dynamic>.from(j as Map)];
+    notifyListeners();
+  }
+
+  /// Admin records money already sent (Chapa dashboard / bank / telebirr). amountBirr null = pay the full balance.
+  Future<void> recordPayout({required String kind, required String userId, double? amountBirr, required String method, required String reference}) async {
+    await api.post('/api/admin/payouts', {
+      'kind': kind, 'userId': userId, 'method': method, 'reference': reference,
+      if (amountBirr != null) 'amount': (amountBirr * 100).round(),
+    });
+    await loadPayables();
   }
 }

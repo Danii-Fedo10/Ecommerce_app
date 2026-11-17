@@ -161,6 +161,46 @@ test('dev simulate-payment + courier list + /me seller status', async () => {
   assert.equal((await api('GET', '/api/me', { token: seller.token })).json.sellerStatus, 'verified');
 });
 
+test('payouts: seller balance, partial payout, no overpay / double-record, refunds', async () => {
+  // seller earnings accumulated by earlier tests
+  const bal = (await api('GET', '/api/seller/balance', { token: seller.token })).json;
+  assert.equal(bal.owed > 0, true);
+  const ledgerBefore = app.svc.balances();
+
+  assert.equal((await api('GET', '/api/admin/payables', { token: buyer.token })).status, 403);
+  const pay = (await api('GET', '/api/admin/payables', { token: admin.token })).json.items.find((i) => i.userId === seller.user.id);
+  assert.equal(pay.owed, bal.owed);
+  assert.equal(pay.kind, 'seller');
+
+  const body = (extra) => ({ token: admin.token, body: { kind: 'seller', userId: seller.user.id, method: 'telebirr', ...extra } });
+  assert.equal((await api('POST', '/api/admin/payouts', body({ amount: 100, reference: 'x' }))).status, 400);              // reference too short
+  assert.equal((await api('POST', '/api/admin/payouts', body({ amount: bal.owed + 1, reference: 'TX-OVER-1' }))).status, 409); // overpay
+  const half = Math.floor(bal.owed / 2);
+  const ok = await api('POST', '/api/admin/payouts', body({ amount: half, reference: 'TX-0001' }));
+  assert.equal(ok.json.remaining, bal.owed - half);
+  assert.equal((await api('POST', '/api/admin/payouts', body({ amount: 100, reference: 'TX-0001' }))).status, 409);        // same reference twice
+  const after = (await api('GET', '/api/seller/balance', { token: seller.token })).json;
+  assert.equal(after.owed, bal.owed - half);
+  assert.equal(after.paidOut, half);
+  const full = await api('POST', '/api/admin/payouts', body({ reference: 'TX-0002' }));                                      // default = remaining balance
+  assert.equal(full.json.remaining, 0);
+  assert.equal((await api('POST', '/api/admin/payouts', body({ reference: 'TX-0003' }))).status, 409);                       // nothing owed
+
+  // refund payout: pay for an order, cancel it, then record the refund we sent
+  const o = (await api('POST', '/api/orders', { token: buyer.token, body: { items: [{ productId: product.id, qty: 10 }], address, paymentMethod: 'telebirr' } })).json;
+  await api('POST', `/api/orders/${o.id}/pay`, { token: buyer.token });
+  await api('POST', `/api/dev/orders/${o.id}/simulate-payment`, { token: buyer.token });
+  await api('POST', `/api/orders/${o.id}/cancel`, { token: buyer.token });
+  const refunds = (await api('GET', '/api/refunds', { token: buyer.token })).json;
+  assert.equal(refunds.owed >= o.total, true);
+  const rp = await api('POST', '/api/admin/payouts', { token: admin.token, body: { kind: 'refund', userId: buyer.user.id, method: 'cbe_birr', reference: 'RF-0001' } });
+  assert.equal(rp.json.remaining, 0);
+  assert.equal((await api('GET', '/api/refunds', { token: buyer.token })).json.paid >= o.total, true);
+
+  assert.equal(Object.values(app.svc.balances()).reduce((a, b) => a + b, 0), 0); // ledger still balances
+  assert.equal(ledgerBefore.platform !== undefined, true);
+});
+
 test('OTP: wrong code rejected; address validation', async () => {
   await api('POST', '/api/auth/otp', { body: { phone: '0933000009' } });
   assert.equal((await api('POST', '/api/auth/verify', { body: { phone: '0933000009', code: '000000' } })).status, 401);

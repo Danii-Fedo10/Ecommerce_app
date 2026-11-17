@@ -37,6 +37,7 @@ class AccountScreen extends StatelessWidget {
         if (s.loggedIn && s.role == 'buyer') _applyCard(context, s),
         if (s.role == 'seller') ..._seller(context, s),
         if (s.role == 'admin') ..._admin(context, s),
+        if (s.role == 'admin') ..._payables(context, s),
         if (s.role == 'admin' || s.role == 'courier') ..._deliveries(context, s),
       ]),
     );
@@ -97,6 +98,12 @@ class AccountScreen extends StatelessWidget {
       if (!verified) Padding(padding: const EdgeInsets.only(top: 8), child: Text(s.sellerStatus == 'rejected' ? 'Your application was rejected.' : 'Verification pending. An admin is checking your TIN and licence.', style: const TextStyle(color: Colors.orange))),
       const SizedBox(height: 8),
       Row(children: [_stat('Orders', '${s.sellerOrders.length}'), _stat('Products', '${mine.length}')]),
+      if (s.balance != null)
+        Row(children: [
+          _stat('Payable to you', etb((s.balance!['owed'] as num) / 100)),
+          _stat('In escrow', etb((s.balance!['inEscrow'] as num) / 100)),
+          _stat('Paid out', etb((s.balance!['paidOut'] as num) / 100)),
+        ]),
       for (final p in mine) Card(child: ListTile(leading: Text(p.emoji, style: const TextStyle(fontSize: 28)), title: Text(p.name), subtitle: Text('${etb(p.price)} · stock ${p.stock} · MOQ ${p.moq}'))),
       const SizedBox(height: 8),
       const Text('Incoming orders', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -119,6 +126,7 @@ class AccountScreen extends StatelessWidget {
         const Divider(height: 30),
         const Text('Admin: seller applications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         if (s.pendingSellers.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No pending applications')),
+        // payables are appended below the applications list
         for (final a in s.pendingSellers)
           Card(child: ListTile(
             title: Text('${a['shop_name']} · ${a['tera']}'),
@@ -130,6 +138,60 @@ class AccountScreen extends StatelessWidget {
             ]),
           )),
       ];
+
+  List<Widget> _payables(BuildContext context, AppState s) => [
+        const Divider(height: 30),
+        Row(children: [
+          const Text('Admin: money to pay out', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Spacer(),
+          IconButton(onPressed: () => _run(context, s.loadPayables), icon: const Icon(Icons.refresh)),
+        ]),
+        const Text('Send the money from the Chapa dashboard, bank or telebirr first, then record it here with the transaction reference.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+        if (s.payables.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('Nothing to pay out')),
+        for (final p in s.payables)
+          Card(child: ListTile(
+            title: Text('${p['kind'] == 'seller' ? 'Seller' : 'Refund'}: ${p['name'] ?? p['phone']}'),
+            subtitle: Text('${p['phone']} · owed ${etb((p['owed'] as num) / 100)}'),
+            trailing: FilledButton(onPressed: () => _payoutDialog(context, s, p), child: const Text('Record payout')),
+          )),
+      ];
+
+  void _payoutDialog(BuildContext context, AppState s, Map<String, dynamic> p) {
+    final owedBirr = (p['owed'] as num) / 100;
+    final amount = TextEditingController(text: owedBirr.toStringAsFixed(2)), ref = TextEditingController();
+    String method = 'telebirr';
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, set) => AlertDialog(
+        title: Text('Pay ${p['name'] ?? p['phone']}'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Amount (ETB), owed ${etb(owedBirr)}')),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, children: [
+            for (final m in const ['telebirr', 'cbe_birr', 'bank', 'chapa_transfer', 'cash'])
+              ChoiceChip(label: Text(m), selected: method == m, onSelected: (_) => set(() => method = m)),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: ref, decoration: const InputDecoration(labelText: 'Transaction reference')),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              final amt = double.tryParse(amount.text);
+              if (amt == null || amt <= 0 || ref.text.trim().length < 3) return;
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await s.recordPayout(kind: p['kind'] as String, userId: p['userId'] as String, amountBirr: amt, method: method, reference: ref.text.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+              } catch (e) { messenger.showSnackBar(SnackBar(content: Text(errText(e)))); }
+            },
+            child: const Text('Record'),
+          ),
+        ],
+      )),
+    );
+  }
 
   List<Widget> _deliveries(BuildContext context, AppState s) => [
         const Divider(height: 30),

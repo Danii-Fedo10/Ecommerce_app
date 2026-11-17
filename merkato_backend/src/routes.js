@@ -137,6 +137,8 @@ export function buildRoutes({ db, config, svc, chapa, sendSms }) {
     return q('SELECT * FROM rfqs WHERE id=?').get(id);
   });
   r.add('GET', '/api/rfqs', null, ({ user }) => ({ items: q('SELECT * FROM rfqs WHERE buyer_id=? ORDER BY created_at DESC').all(user.id) }));
+  r.add('GET', '/api/seller/balance', ROLE('seller'), ({ user }) => svc.sellerBalance(user.id));
+  r.add('GET', '/api/refunds', null, ({ user }) => svc.refundBalance(user.id));
   r.add('GET', '/api/seller/rfqs', ROLE('seller'), () => ({ items: q("SELECT * FROM rfqs WHERE status='open' ORDER BY created_at DESC LIMIT 100").all() }));
 
   // ---------- Payment webhook (raw body signature) ----------
@@ -162,6 +164,8 @@ export function buildRoutes({ db, config, svc, chapa, sendSms }) {
     return { userId: params.id, role: body.role };
   });
   r.add('POST', '/api/admin/orders/:id/resolve', ROLE('admin'), ({ params, body }) => svc.resolveDispute(params.id, body.action));
+  r.add('GET', '/api/admin/payables', ROLE('admin'), () => ({ items: svc.payables() }));
+  r.add('POST', '/api/admin/payouts', ROLE('admin'), ({ user, body }) => svc.recordPayout(user.id, body));
   r.add('GET', '/api/admin/ledger', ROLE('admin'), () => ({ balances: svc.balances() }));
 
   return r;

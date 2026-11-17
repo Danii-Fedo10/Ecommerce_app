@@ -216,5 +216,57 @@ export function createServices({ db, config, chapa }) {
     return Object.fromEntries(q('SELECT account, SUM(amount) AS balance FROM ledger GROUP BY account').all().map((r) => [r.account, r.balance]));
   }
 
-  return { tx, getOrder, view, placeOrder, startPayment, confirmPayment, cancel, sellerStep, markDelivered, confirmReceipt, release, dispute, resolveDispute, autoRelease, balances, unitPrice };
+  // ---- Payouts & refunds ----
+  const METHODS = ['telebirr', 'cbe_birr', 'bank', 'cash', 'chapa_transfer'];
+  const accountOf = (kind, userId) => (kind === 'seller' ? `seller:${userId}` : `refund:${userId}`);
+  const balanceOf = (account) => q('SELECT COALESCE(SUM(amount),0) AS b FROM ledger WHERE account=?').get(account).b;
+
+  /** Everyone we currently owe money to (sellers' earnings, buyers' refunds). */
+  function payables() {
+    const rows = q("SELECT account, SUM(amount) AS owed FROM ledger WHERE (account LIKE 'seller:%' OR account LIKE 'refund:%') GROUP BY account HAVING owed > 0").all();
+    return rows.map((r) => {
+      const [kind, userId] = r.account.split(':');
+      const u = q('SELECT name, phone FROM users WHERE id=?').get(userId);
+      const shop = kind === 'seller' ? q('SELECT shop_name FROM sellers WHERE user_id=?').get(userId)?.shop_name : null;
+      return { kind, userId, name: shop || u?.name || null, phone: u?.phone, owed: r.owed };
+    });
+  }
+
+  /** Admin records money they sent out (Chapa dashboard / bank / telebirr). Balanced ledger entry; can't overpay or double-record. */
+  function recordPayout(adminId, { kind, userId, amount, method, reference }) {
+    if (!['seller', 'refund'].includes(kind)) throw new HttpError(400, 'kind must be seller or refund');
+    if (!METHODS.includes(method)) throw new HttpError(400, `method must be one of ${METHODS.join(', ')}`);
+    const ref = str(reference, 'reference', { min: 3, max: 80 });
+    return tx(() => {
+      if (!q('SELECT 1 FROM users WHERE id=?').get(String(userId))) throw new HttpError(404, 'User not found');
+      const account = accountOf(kind, userId);
+      const owed = balanceOf(account);
+      const amt = amount === undefined || amount === null ? owed : int(amount, 'amount (santim)', { min: 1 });
+      if (owed <= 0) throw new HttpError(409, 'Nothing is owed to this user');
+      if (amt > owed) throw new HttpError(409, `Amount exceeds balance owed (${owed} santim)`);
+      const id = uid('po');
+      try {
+        q('INSERT INTO payouts(id,kind,user_id,amount,method,reference,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, kind, userId, amt, method, ref, adminId, Date.now());
+      } catch (e) {
+        if (String(e.message).includes('UNIQUE')) throw new HttpError(409, 'This transaction reference was already recorded');
+        throw e;
+      }
+      post(null, 'payout', [[account, -amt], ['external', amt]]);
+      return { id, kind, userId, amount: amt, method, reference: ref, remaining: owed - amt };
+    });
+  }
+
+  function sellerBalance(sellerId) {
+    const owed = balanceOf(`seller:${sellerId}`);
+    const paidOut = q("SELECT COALESCE(SUM(amount),0) AS s FROM payouts WHERE kind='seller' AND user_id=?").get(sellerId).s;
+    // Earnings still waiting on delivery confirmation (online payments held in escrow).
+    const inEscrow = q("SELECT COALESCE(SUM(subtotal),0) AS s FROM orders WHERE seller_id=? AND payment_status='escrow'").get(sellerId).s;
+    return { owed, paidOut, inEscrow };
+  }
+
+  function refundBalance(userId) {
+    return { owed: balanceOf(`refund:${userId}`), paid: q("SELECT COALESCE(SUM(amount),0) AS s FROM payouts WHERE kind='refund' AND user_id=?").get(userId).s };
+  }
+
+  return { payables, recordPayout, sellerBalance, refundBalance, tx, getOrder, view, placeOrder, startPayment, confirmPayment, cancel, sellerStep, markDelivered, confirmReceipt, release, dispute, resolveDispute, autoRelease, balances, unitPrice };
 }

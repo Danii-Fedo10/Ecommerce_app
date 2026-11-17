@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT, entry_group TEXT NOT NULL, order_id TEXT, kind TEXT NOT NULL,
   account TEXT NOT NULL, amount INTEGER NOT NULL, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_ledger_account ON ledger(account);
+CREATE TABLE IF NOT EXISTS payouts (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('seller','refund')), user_id TEXT NOT NULL REFERENCES users(id),
+  amount INTEGER NOT NULL CHECK (amount > 0), method TEXT NOT NULL, reference TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL,
+  UNIQUE (method, reference));  -- the same bank/telebirr transaction can't be recorded twice
 CREATE TABLE IF NOT EXISTS rfqs (
   id TEXT PRIMARY KEY, buyer_id TEXT NOT NULL REFERENCES users(id), product_text TEXT NOT NULL,
   qty INTEGER NOT NULL, target_price INTEGER, note TEXT, status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL);
